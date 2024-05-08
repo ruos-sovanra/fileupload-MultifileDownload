@@ -138,6 +138,7 @@ public class FileServiceImpl implements FileService {
                 content // Add the content to the response
         );
     }
+
     @Override
     public List<String> uploadMultipleFiles(MultipartFile[] files) {
         var fileNames = new ArrayList<String>();
