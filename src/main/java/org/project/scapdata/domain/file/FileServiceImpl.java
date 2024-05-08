@@ -2,6 +2,8 @@ package org.project.scapdata.domain.file;
 
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.project.scapdata.domain.file.dto.FileResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
@@ -15,11 +17,13 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -35,13 +39,23 @@ public class FileServiceImpl implements FileService {
             "application/pdf",
             "application/msword",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-    //http://localhost:8888/api/v1/files/download/3f54df29-31f0-4c74-9552-62dfca9e4f1e.png
+
     private String generateImageUrl(HttpServletRequest request, String filename) {
         return String.format("%s://%s:%d/images/%s",
                 request.getScheme(),
                 request.getServerName(),
                 request.getServerPort(),
                 filename);
+    }
+
+    //read the content of the PDF file
+    public String readPdfContent(InputStream inputStream) {
+        try (PDDocument document = PDDocument.load(inputStream)) {
+            PDFTextStripper pdfStripper = new PDFTextStripper();
+            return pdfStripper.getText(document);
+        } catch (IOException e) {
+            throw new RuntimeException("Error occurred while reading PDF content", e);
+        }
     }
 
     private String generateDownloadImageUrl(HttpServletRequest request, String filename) {
@@ -51,6 +65,7 @@ public class FileServiceImpl implements FileService {
                 request.getServerPort(),
                 filename);
     }
+
     private String uploadFile(MultipartFile file) {
        String contentType = file.getContentType();
        if(!SUPPORTED_IMAGE_TYPES.contains(contentType)){
@@ -79,17 +94,49 @@ public class FileServiceImpl implements FileService {
         }
 
     }
+    @Override
+    public List<String> getAllFileNames() {
+        try {
+            return Files.list(Path.of(fileStorageDir))
+                    .filter(Files::isRegularFile)
+                    .map(Path::getFileName)
+                    .map(Path::toString)
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            throw new RuntimeException("Error occurred while getting all file names", e);
+        }
+    }
 
     @Override
     public FileResponse uploadSingleFile(MultipartFile file, HttpServletRequest request) {
         String filename = uploadFile(file);
         String fullImageUrl = generateImageUrl(request, filename);
-        return FileResponse.builder()
-                .downloadUrl(generateDownloadImageUrl(request,filename))
-                .fileType(file.getContentType())
-                .size((float) file.getSize() / 1024) // in KB
-                .filename(filename)
-                .fullUrl(fullImageUrl).build();
+        String content = null;
+
+        // Check if the file is a PDF
+        if ("application/pdf".equals(file.getContentType())) {
+            try {
+                // Read the content of the PDF
+                content = readPdfContent(file.getInputStream());
+
+
+                // Write the content to a text file
+                String txtFileName = filename.replace(".pdf", ".txt");
+                Path txtFilePath = Path.of(fileStorageDir).resolve(txtFileName);
+                Files.writeString(txtFilePath, content);
+            } catch (IOException e) {
+                throw new RuntimeException("Error occurred while reading PDF content", e);
+            }
+        }
+
+        return new FileResponse(
+                generateDownloadImageUrl(request,filename),
+                file.getContentType(),
+                (float) file.getSize() / 1024, // in KB
+                filename,
+                fullImageUrl,
+                content // Add the content to the response
+        );
     }
     @Override
     public List<String> uploadMultipleFiles(MultipartFile[] files) {
