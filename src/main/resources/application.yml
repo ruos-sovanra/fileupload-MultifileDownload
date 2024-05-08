@@ -1,0 +1,14 @@
+
+file:
+  storage-dir: "filestorage/images/"
+  client-dir: "/images/**"
+spring:
+  servlet: # this is for file upload
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
+springdoc:
+  swagger-ui:
+    path: /
+server:
+  port: 8888
