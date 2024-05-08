@@ -13,7 +13,7 @@ public interface FileService {
     FileResponse uploadSingleFile(MultipartFile file, HttpServletRequest request);
     List<String> uploadMultipleFiles(MultipartFile[] files);
 
-
+    ResponseEntity<Resource> serveMultipleFiles(List<String> filenames, HttpServletRequest request);
     ResponseEntity<Resource> serveFile(String filename, HttpServletRequest request);
     void deleteFile(String filename);
 }

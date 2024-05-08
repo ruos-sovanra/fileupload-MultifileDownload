@@ -4,11 +4,14 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.project.scapdata.domain.file.dto.FileResponse;
 import org.project.scapdata.utils.BaseResponse;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -39,11 +42,19 @@ public class FileRestController {
     public ResponseEntity<?> downloadFile(@PathVariable String fileName, HttpServletRequest request){
         return fileService.serveFile(fileName,request);
     }
+
+    @GetMapping("/download/multiple")
+    public ResponseEntity<Resource> downloadMultipleFiles(@RequestParam List<String> filenames, HttpServletRequest request){
+        return fileService.serveMultipleFiles(filenames, request);
+    }
+
     @DeleteMapping("{fileName}")
     public String deleteFile(@PathVariable String fileName) {
         fileService.deleteFile(fileName);
         return "file is deleted successfully!";
     }
+
+
 
 
 }

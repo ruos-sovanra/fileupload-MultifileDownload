@@ -20,6 +20,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 
 @Service
@@ -97,29 +99,65 @@ public class FileServiceImpl implements FileService {
         }
         return fileNames;
     }
+
     @Override
     public ResponseEntity<Resource> serveFile(String filename, HttpServletRequest request) {
         try {
-            //        get path of the images
-            Path imagePath = Path.of(fileStorageDir).resolve(filename);
-            Resource resourceUrl = new UrlResource(imagePath.toUri());
-            if(resourceUrl.exists()){
-                return ResponseEntity
-                        .ok()
-                    .contentType(MediaType.parseMediaType("image/jpeg"))
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + resourceUrl.getFilename() + "\"")
-                    .body(resourceUrl);
+            Path filePath = Path.of(fileStorageDir).resolve(filename);
+            Resource resource = new UrlResource(filePath.toUri());
+            if(resource.exists()){
+                String contentType = Files.probeContentType(filePath);
+                if (contentType == null) {
+                    contentType = "application/octet-stream";
+                }
+                return ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType(contentType))
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + resource.getFilename() + "\"")
+                        .body(resource);
             }else {
-                // bad request
                 throw new RuntimeException("Resources not found ! ");
             }
-        } catch (MalformedURLException ex) {
-            ex.printStackTrace();
+        } catch (IOException ex) {
+            throw new RuntimeException("Error occurred while serving file", ex);
         }
-
-        return null;
     }
 
+    @Override
+    public ResponseEntity<Resource> serveMultipleFiles(List<String> filenames, HttpServletRequest request) {
+        try {
+            // Create a temporary zip file
+            Path zipPath = Files.createTempFile("files", ".zip");
+            try (ZipOutputStream zipOutputStream = new ZipOutputStream(Files.newOutputStream(zipPath))) {
+                for (String filename : filenames) {
+                    // Get the path to the file
+                    Path filePath = Path.of(fileStorageDir).resolve(filename);
+                    // Create a new zip entry
+                    zipOutputStream.putNextEntry(new ZipEntry(filename));
+                    // Copy the file into the zip entry
+                    Files.copy(filePath, zipOutputStream);
+                    // Close the zip entry
+                    zipOutputStream.closeEntry();
+                }
+            }
+
+            // Create a resource for the zip file
+            Resource resource = new UrlResource(zipPath.toUri());
+            if (resource.exists()) {
+                String contentType = Files.probeContentType(zipPath);
+                if (contentType == null) {
+                    contentType = "application/octet-stream";
+                }
+                return ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType(contentType))
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + resource.getFilename() + "\"")
+                        .body(resource);
+            } else {
+                throw new RuntimeException("Resources not found ! ");
+            }
+        } catch (IOException ex) {
+            throw new RuntimeException("Error occurred while serving file", ex);
+        }
+    }
     @Override
     public void deleteFile(String filename) {
 
